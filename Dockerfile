@@ -2,8 +2,26 @@
 #
 # docker build -t sequenceiq/hadoop .
 
-FROM sequenceiq/pam:centos-6.5
-MAINTAINER SequenceIQ
+FROM library/centos:7
+
+# see https://www.brad-x.com/2014/12/27/running-systemd-within-a-docker-image/
+RUN yum -y update; yum clean all \
+    yum -y swap -- remove fakesystemd -- install systemd systemd-libs \
+    rm -f /lib/systemd/system/multi-user.target.wants/*;\
+    rm -f /etc/systemd/system/*.wants/*;\
+    rm -f /lib/systemd/system/local-fs.target.wants/*; \
+    rm -f /lib/systemd/system/sockets.target.wants/*udev*; \
+    rm -f /lib/systemd/system/sockets.target.wants/*initctl*; \
+    rm -f /lib/systemd/system/basic.target.wants/*;\
+    rm -f /lib/systemd/system/anaconda.target.wants/*;
+RUN systemctl mask getty.target swap.target
+RUN systemctl disable graphical.target; systemctl enable multi-user.target
+VOLUME ["/sys/fs/cgroup"]
+VOLUME ["/run"]
+VOLUME ["/export"]
+ENV container=lxc
+
+# MAINTAINER SequenceIQ
 
 USER root
 
@@ -94,9 +112,6 @@ RUN ls -la /usr/local/hadoop/etc/hadoop/*-env.sh
 RUN sed  -i "/^[^#]*UsePAM/ s/.*/#&/"  /etc/ssh/sshd_config
 RUN echo "UsePAM no" >> /etc/ssh/sshd_config
 RUN echo "Port 2122" >> /etc/ssh/sshd_config
-
-RUN service sshd start && $HADOOP_PREFIX/etc/hadoop/hadoop-env.sh && $HADOOP_PREFIX/sbin/start-dfs.sh && $HADOOP_PREFIX/bin/hdfs dfs -mkdir -p /user/root
-RUN service sshd start && $HADOOP_PREFIX/etc/hadoop/hadoop-env.sh && $HADOOP_PREFIX/sbin/start-dfs.sh && $HADOOP_PREFIX/bin/hdfs dfs -put $HADOOP_PREFIX/etc/hadoop/ input
 
 CMD ["/etc/bootstrap.sh", "-d"]
 
